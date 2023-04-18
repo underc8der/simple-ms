@@ -1,25 +1,32 @@
+mod in_mem_order_store;
+mod order_store;
+mod api;
+
 use axum::{
     error_handling::HandleErrorLayer,
     http::{StatusCode, Uri},
-    response::IntoResponse,
+    response::{IntoResponse, ErrorResponse},
     routing::{post, delete, get}, 
-    BoxError, Router, Server,
+    BoxError, Router, Server, Json, extract::Path,
 };
 
 use dotenv::dotenv;
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
-use std::{env};
+use uuid::Uuid;
+use std::{env, sync::Arc};
 use tracing::{error, info};
 
 use std::time::Duration;
 use tower::timeout::TimeoutLayer;
 use api::{health, orders};
+use serde_json::{json, Value};
 
-mod order_store;
-mod in_mem_order_store;
-mod api;
+use crate::in_mem_order_store::InMemOrderStore;
 
+/* 
+    current video: https://youtu.be/mhpe2rFhedo?t=3270
+ */
 #[tokio::main]
 async fn main() {
     
@@ -35,14 +42,22 @@ async fn main() {
 
     info!("Launching server: http://{server_addr}/");
 
+    let repo = InMemOrderStore::new();
+    let state = Arc::new(repo);
+
+    let orders_route = Router::new()
+        .route("/", get(orders::list).post(orders::create))
+        .route("/:id", get(orders::get))
+        .route("/:id/item", post(orders::add_item))
+        .route("/:id/item/:index", delete(orders::delete_item))
+        .with_state(state);
+
     let app: Router = Router::new()
         .route("/", get(|| async { "Super Microservice" }))
         .route("/hello", get(hello))
+        .route("/hello/:msg", get(json_sample))
         .route("/health", get(health::get))
-        .route("/orders", get(orders::list).post(orders::create))
-        .route("/orders/:id", get(orders::get))
-        .route("/orders/:id/item", post(orders::add_item))
-        .route("/orders/:id/item/:index", delete(orders::delete_item))
+        .nest("/orders", orders_route)
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
@@ -59,7 +74,10 @@ async fn main() {
         .unwrap();
 }
 
-
+async fn json_sample(Path(msg): Path<String>) -> Result<Json<Value>, ErrorResponse> {
+    let id = Uuid::new_v4();
+    Ok(Json(json!({ "id": id, "message": msg})))
+}
 
 async fn hello() -> &'static str {
     // tokio::time::sleep(Duration::from_secs(6)).await;

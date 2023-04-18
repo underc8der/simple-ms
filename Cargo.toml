@@ -5,11 +5,14 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[dependencies]
+[dependencies]  
 async-trait = "0.1.63"
-axum = "0.6.6"
+axum = { version = "0.6.6", features = ["macros"] }
 dotenv = "0.15.0"
 env = "0.0.0"
+hex-literal = "0.4.1"
+serde = { version = "1.0.160", features = ["derive"] }
+serde_json = "1.0.94"
 tokio = { version = "1.24.2", features = ["full"] }
 tower = { version = "0.4.13", features = ["timeout"] }
 tower-http = { version = "0.4.0", features = ["trace"] }
